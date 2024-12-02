@@ -1,0 +1,353 @@
+<<<<<<< HEAD
+---
+title: "R Notebook"
+output: html_notebook
+---
+# Step 1 - Loading Necessary Packages
+```{r}
+library(arules)
+library(data.table)
+```
+
+# Step 2 - Reading and Manipulating Data
+# I will only use the "movie.csv" and "rating.csv" for this project.
+```{r}
+# Load data (adjust file paths as needed)
+movie <- fread('movie.csv')
+user_rating <- fread('rating.csv')
+```
+
+```{r}
+# Let's merge it!
+merged_df <-merge(user_rating,movie, by.x="movieId")
+head(merged_df)
+```
+
+# Step 3 - Recommends by using 'Movie Title'
+# In this step I will analyse the data by using Movie Titles, and try to recommend movies to people specifically watched certain movies.
+```{r}
+# I need only two columns
+user_and_titles <- subset(merged_df, select=c("userId","title"))
+```
+
+```{r}
+# Let's save it
+write.csv(user_and_titles,"user_and_titles.csv")
+```
+
+# Step 3a - Transactions
+```{r}
+# Let's find out transactions
+transactions_title <- read.transactions("user_and_titles.csv", format="single", header=TRUE, sep=",", cols=c("userId", "title"))
+```
+
+```{r}
+# And get a summary of transactional data
+transactions_title
+```
+
+# Step 3b - Find out the most popular movies
+```{r}
+# Let's see the most popular films!
+itemFrequencyPlot(transactions_title,topN=10,type="absolute", main="Top 10 Most Popular Movie")
+```
+
+# I have determined the Top 10 movies, with Pulp Fiction emerging as the most popular, followed by Forest Gump and The Shawshank Redemption. This information holds significance for me as, in the subsequent steps, I will be recommending other films to individuals who have watched the most popular one.
+
+
+# Step 3c - Finding out Association Rules
+```{r}
+# Ok, let the apriori finds rules
+assoc_rules_by_title <- apriori(transactions_title, parameter =list(supp=0.2,conf=0.8))
+
+```
+# I have identified a total of 109 rules using the apriori method. Now, I'm prepared to examine the most confident rules.
+
+```{r}
+# Sort rules by lift
+assoc_rules_by_title <-sort(assoc_rules_by_title,by="lift",decreasing = TRUE)
+
+# Show top 10 rules
+inspect(assoc_rules_by_title[1:10])
+```
+
+# Upon completing my analysis, I examine the top 10 rules. I observe a tendency for users who watch the movies listed on the left-hand side (lhs) to subsequently watch the movies listed on the right-hand side (rhs). This suggests that recommending similar movies to individuals with comparable viewing patterns could be effective.
+
+# The confidence metric reflects the level of confidence in a given rule. For example, in Rule number 1, we are 81% confident that individuals who watched Fight Club and Kill Bill: Vol.1 together are more likely to watch Kill Bill: Vol.2 as well. Furthermore, based on the lift value, people who watch Fight Club and Kill Bill: Vol.1 together are approximately 6 times more likely to also watch Kill Bill: Vol.2.
+
+## Step 3d - Finding out specific recommendations for people watched certain movies
+# Referring to the Top 10 Popular Movies chart presented earlier, Pulp Fiction stands out as the most popular film. Consequently, I will now explore rules that provide recommendations for individuals who have watched Pulp Fiction.
+
+```{r}
+# Since the default values for confidence and support could not find any rules I reduced them
+PulpFiction_rules <-apriori(transactions_title,parameter = list(supp=0.05,conf=0.5), appearance =list(lhs="Pulp Fiction (1994)", default="rhs"))
+PulpFiction_rules <- sort(PulpFiction_rules,by="lift",decreasing=TRUE)
+inspect(PulpFiction_rules)
+```
+
+# Based on the results we can recommend the movies Se7en, Usual Suspects and Batman to individuals who watched the Pulp Fiction.
+
+
+# Step 4 - Recommends by using 'Genre'
+# In this stage, I will execute the same process, but with a specific emphasis on movie genres.
+
+
+```{r}
+# I need two columns again, but this time I use "genres" instead of "title"
+user_and_genres <- subset(merged_df, select=c("userId","genres"))
+head(user_and_genres)
+```
+
+```{r}
+# Saving again
+write.csv(user_and_genres,"user_and_genres.csv")
+```
+
+
+# Step 4a - Transactions
+```{r}
+# Find out transactions
+transactions_genres <- read.transactions("user_and_genres.csv", format="single", header=TRUE, sep=",", cols=c("userId", "genres"))
+
+```
+```{r}
+# Summary of transactional data
+transactions_genres
+```
+
+# Step 4b - Find out the most popular genres
+```{r}
+# Take a look at the most popular genres!
+itemFrequencyPlot(transactions_genres,topN=10,type="absolute", main="Top 10 Most Popular Genres")
+```
+
+# Step 4c - Finding out Association Rules
+```{r}
+# Apriori finds rules
+assoc_rules_by_genres <- apriori(transactions_genres, parameter =list(supp=0.5,conf=0.8) )
+```
+
+```{r}
+# Sort rules by lift
+assoc_rules_by_genres <-sort(assoc_rules_by_genres,by="lift",decreasing = TRUE)
+
+# Show top 10 rules
+inspect(assoc_rules_by_genres[1:10])
+```
+
+# I conducted the identical process and compiled a list of the top 10 rules based on the highest confidence values. According to my findings, if someone enjoys movies in the genres of Action, Crime, Adventure, and Fantasy, that same individual is likely to appreciate movies in the genres of Action, Adventure, Drama, and Fantasy. I have an 88% confidence level in this result.
+
+## Step 4d - Finding out specific recommendations for people like certain genres
+# Considering the Top 10 Popular Genres chart provided earlier, Comedy and Drama emerge as the most popular genres. Now, let's explore some recommendations for individuals who enjoy these genres.
+
+```{r}
+# Notice that the default values find only four rules. You can play by reducing support and confidence values in your own.
+comedy_rules <-apriori(transactions_genres,parameter = list(supp=0.6,conf=0.8), appearance =list(lhs="Comedy", default="rhs"))
+comedy_rules <- sort(comedy_rules,by="lift",decreasing=TRUE)
+inspect(comedy_rules)
+```
+
+# I can confidently assert that if an individual enjoys comedy movies, they are likely to appreciate drama movies as well. My confidence in this statement is 88%, based on Rule Number 2.
+
+## Step 5 - What people tend to watch BEFORE they watch a certain Movie or a certain Genre?
+# In this phase, I will straightforwardly implement the same process, but now focusing on the right-hand side values.
+ 
+## Step 5a - Focusing Movie Title
+```{r}
+# What people tend to watch before they watch Pulp Fiction?
+before_PulpFiction_rules <-apriori(transactions_title,parameter = list(supp=0.1,conf=0.8), appearance =list(default="lhs", rhs="Pulp Fiction (1994)"))
+before_PulpFiction_rules <- sort(before_PulpFiction_rules,by="lift",decreasing=TRUE)
+inspect(before_PulpFiction_rules[1:10])
+```
+
+# We can now conclude that individuals typically tend to watch "Natural Born Killers" and "Usual Suspects" BEFORE they watch "Pulp Fiction."
+  
+## Step 5B - Focusing Genres
+```{r}
+# What people tend to watch before they watch Comedy movies?
+before_comedy_rules <- apriori(transactions_genres,parameter = list(supp=0.1,conf=0.8), appearance =list(default="lhs",rhs="Comedy"))
+before_comedy_rules <- sort(before_comedy_rules,by="lift",decreasing=TRUE)
+inspect(before_comedy_rules[1:10])
+```
+
+
+# People typically tend to watch Adventure and Musical movies before opting for a comedy movie.
+=======
+---
+title: "R Notebook"
+output: html_notebook
+---
+# Step 1 - Loading Necessary Packages
+```{r}
+library(arules)
+library(data.table)
+```
+
+# Step 2 - Reading and Manipulating Data
+# I will only use the "movie.csv" and "rating.csv" for this project.
+```{r}
+# Load data (adjust file paths as needed)
+movie <- fread('movie.csv')
+user_rating <- fread('rating.csv')
+```
+```{r}
+head(movie)
+```
+
+
+```{r}
+# Let's merge it!
+merged_df <-merge(user_rating,movie, by.x="movieId")
+head(merged_df)
+```
+
+# Step 3 - Recommends by using 'Movie Title'
+# In this step I will analyse the data by using Movie Titles, and try to recommend movies to people specifically watched certain movies.
+```{r}
+# I need only two columns
+user_and_titles <- subset(merged_df, select=c("userId","title"))
+```
+
+```{r}
+# Let's save it
+write.csv(user_and_titles,"user_and_titles.csv")
+```
+
+# Step 3a - Transactions
+```{r}
+# Let's find out transactions
+transactions_title <- read.transactions("user_and_titles.csv", format="single", header=TRUE, sep=",", cols=c("userId", "title"))
+```
+
+```{r}
+# And get a summary of transactional data
+transactions_title
+```
+
+# Step 3b - Find out the most popular movies
+```{r}
+# Let's see the most popular films!
+itemFrequencyPlot(transactions_title,topN=10,type="absolute", main="Top 10 Most Popular Movie")
+```
+
+# I have determined the Top 10 movies, with Pulp Fiction emerging as the most popular, followed by Forest Gump and The Shawshank Redemption. This information holds significance for me as, in the subsequent steps, I will be recommending other films to individuals who have watched the most popular one.
+
+
+# Step 3c - Finding out Association Rules
+```{r}
+# Ok, let the apriori finds rules
+assoc_rules_by_title <- apriori(transactions_title, parameter =list(supp=0.2,conf=0.8))
+
+```
+# I have identified a total of 109 rules using the apriori method. Now, I'm prepared to examine the most confident rules.
+
+```{r}
+# Sort rules by lift
+assoc_rules_by_title <-sort(assoc_rules_by_title,by="lift",decreasing = TRUE)
+
+# Show top 10 rules
+inspect(assoc_rules_by_title[1:10])
+```
+
+# Upon completing my analysis, I examine the top 10 rules. I observe a tendency for users who watch the movies listed on the left-hand side (lhs) to subsequently watch the movies listed on the right-hand side (rhs). This suggests that recommending similar movies to individuals with comparable viewing patterns could be effective.
+
+# The confidence metric reflects the level of confidence in a given rule. For example, in Rule number 1, we are 81% confident that individuals who watched Fight Club and Kill Bill: Vol.1 together are more likely to watch Kill Bill: Vol.2 as well. Furthermore, based on the lift value, people who watch Fight Club and Kill Bill: Vol.1 together are approximately 6 times more likely to also watch Kill Bill: Vol.2.
+
+## Step 3d - Finding out specific recommendations for people watched certain movies
+# Referring to the Top 10 Popular Movies chart presented earlier, Pulp Fiction stands out as the most popular film. Consequently, I will now explore rules that provide recommendations for individuals who have watched Pulp Fiction.
+
+```{r}
+# Since the default values for confidence and support could not find any rules I reduced them
+PulpFiction_rules <-apriori(transactions_title,parameter = list(supp=0.05,conf=0.5), appearance =list(lhs="Pulp Fiction (1994)", default="rhs"))
+PulpFiction_rules <- sort(PulpFiction_rules,by="lift",decreasing=TRUE)
+inspect(PulpFiction_rules)
+```
+
+# Based on the results we can recommend the movies Se7en, Usual Suspects and Batman to individuals who watched the Pulp Fiction.
+
+
+# Step 4 - Recommends by using 'Genre'
+# In this stage, I will execute the same process, but with a specific emphasis on movie genres.
+
+
+```{r}
+# I need two columns again, but this time I use "genres" instead of "title"
+user_and_genres <- subset(merged_df, select=c("userId","genres"))
+head(user_and_genres)
+```
+
+```{r}
+# Saving again
+write.csv(user_and_genres,"user_and_genres.csv")
+```
+
+
+# Step 4a - Transactions
+```{r}
+# Find out transactions
+transactions_genres <- read.transactions("user_and_genres.csv", format="single", header=TRUE, sep=",", cols=c("userId", "genres"))
+
+```
+```{r}
+# Summary of transactional data
+transactions_genres
+```
+
+# Step 4b - Find out the most popular genres
+```{r}
+# Take a look at the most popular genres!
+itemFrequencyPlot(transactions_genres,topN=10,type="absolute", main="Top 10 Most Popular Genres")
+```
+
+# Step 4c - Finding out Association Rules
+```{r}
+# Apriori finds rules
+assoc_rules_by_genres <- apriori(transactions_genres, parameter =list(supp=0.5,conf=0.8) )
+```
+
+```{r}
+# Sort rules by lift
+assoc_rules_by_genres <-sort(assoc_rules_by_genres,by="lift",decreasing = TRUE)
+
+# Show top 10 rules
+inspect(assoc_rules_by_genres[1:10])
+```
+
+# I conducted the identical process and compiled a list of the top 10 rules based on the highest confidence values. According to my findings, if someone enjoys movies in the genres of Action, Crime, Adventure, and Fantasy, that same individual is likely to appreciate movies in the genres of Action, Adventure, Drama, and Fantasy. I have an 88% confidence level in this result.
+
+## Step 4d - Finding out specific recommendations for people like certain genres
+# Considering the Top 10 Popular Genres chart provided earlier, Comedy and Drama emerge as the most popular genres. Now, let's explore some recommendations for individuals who enjoy these genres.
+
+```{r}
+# Notice that the default values find only four rules. You can play by reducing support and confidence values in your own.
+comedy_rules <-apriori(transactions_genres,parameter = list(supp=0.6,conf=0.8), appearance =list(lhs="Comedy", default="rhs"))
+comedy_rules <- sort(comedy_rules,by="lift",decreasing=TRUE)
+inspect(comedy_rules)
+```
+
+# I can confidently assert that if an individual enjoys comedy movies, they are likely to appreciate drama movies as well. My confidence in this statement is 88%, based on Rule Number 2.
+
+## Step 5 - What people tend to watch BEFORE they watch a certain Movie or a certain Genre?
+# In this phase, I will straightforwardly implement the same process, but now focusing on the right-hand side values.
+ 
+## Step 5a - Focusing Movie Title
+```{r}
+# What people tend to watch before they watch Pulp Fiction?
+before_PulpFiction_rules <-apriori(transactions_title,parameter = list(supp=0.1,conf=0.8), appearance =list(default="lhs", rhs="Pulp Fiction (1994)"))
+before_PulpFiction_rules <- sort(before_PulpFiction_rules,by="lift",decreasing=TRUE)
+inspect(before_PulpFiction_rules[1:10])
+```
+
+# We can now conclude that individuals typically tend to watch "Natural Born Killers" and "Usual Suspects" BEFORE they watch "Pulp Fiction."
+  
+## Step 5B - Focusing Genres
+```{r}
+# What people tend to watch before they watch Comedy movies?
+before_comedy_rules <- apriori(transactions_genres,parameter = list(supp=0.1,conf=0.8), appearance =list(default="lhs",rhs="Comedy"))
+before_comedy_rules <- sort(before_comedy_rules,by="lift",decreasing=TRUE)
+inspect(before_comedy_rules[1:10])
+```
+
+
+# People typically tend to watch Adventure and Musical movies before opting for a comedy movie.
+>>>>>>> 0ed3b73 (UI updated)
